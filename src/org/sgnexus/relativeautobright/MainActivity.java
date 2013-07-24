@@ -6,13 +6,14 @@ import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-
+	private String mTag = MainActivity.class.getSimpleName();
 	private CheckBox mVServiceEnabled;
 
 	@Override
@@ -36,14 +37,15 @@ public class MainActivity extends Activity {
 	}
 
 	public void toggleService(View v) {
+		Log.d("thread", "Activity Thread id: " + Thread.currentThread().getId());
 		if (isServiceRunning()) {
 			Toast.makeText(getApplicationContext(), "Stopping service",
 					Toast.LENGTH_SHORT).show();
-			stopService(new Intent(this, AutoBrightService.class));
+			stopService(new Intent(this, AutoBrightnessService.class));
 		} else {
 			Toast.makeText(getApplicationContext(), "Starting service",
 					Toast.LENGTH_SHORT).show();
-			startService(new Intent(this, AutoBrightService.class));
+			startService(new Intent(this, AutoBrightnessService.class));
 		}
 	}
 
@@ -51,7 +53,7 @@ public class MainActivity extends Activity {
 		ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
 		for (RunningServiceInfo service : manager
 				.getRunningServices(Integer.MAX_VALUE)) {
-			if (AutoBrightService.class.getName().equals(
+			if (AutoBrightnessService.class.getName().equals(
 					service.service.getClassName())) {
 				return true;
 			}

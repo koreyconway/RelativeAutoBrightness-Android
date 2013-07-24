@@ -15,7 +15,7 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
         <activity
-            android:name="org.sgnexus.relativeautobright.MainActivity"
+            android:name=".MainActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -23,7 +23,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <service android:label="Auto Brightness Service" android:name="AutoBrightService" android:enabled="true"></service>
+        <service android:label="Auto Brightness Service" android:name=".AutoBrightnessService" android:enabled="true"></service>
     </application>
 
 </manifest>
