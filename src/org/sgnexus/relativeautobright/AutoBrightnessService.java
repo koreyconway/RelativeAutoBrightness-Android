@@ -1,9 +1,11 @@
 package org.sgnexus.relativeautobright;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Vibrator;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -11,10 +13,16 @@ public class AutoBrightnessService extends Service {
 	private AutoBrightnessThread mThread;
 	private String mTag = this.getClass().getSimpleName();
 	private Toast mToast;
+	private boolean mRunning = false;
 
 	private void init(int initialRelativeLevel) {
-		mThread = new AutoBrightnessThread(this, initialRelativeLevel);
-		new Thread(mThread).start();
+		if (!mRunning) {
+			mRunning = true;
+			mToast = new Toast(getApplicationContext());
+			mToast.setDuration(Toast.LENGTH_SHORT);
+			mThread = new AutoBrightnessThread(this, initialRelativeLevel);
+			mThread.start();
+		}
 	}
 
 	@Override
@@ -38,19 +46,19 @@ public class AutoBrightnessService extends Service {
 	@Override
 	public void onDestroy() {
 		Log.d(mTag, "killing service");
+		mRunning = false;
 		mThread.finish();
 		super.onDestroy();
 	}
-	
+
 	synchronized public void toast(CharSequence msg) {
-		if (mToast != null) {
-			mToast.cancel();
-		}
-
-		mToast = Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT);
+		mToast.cancel();
+		mToast.setText(msg);
 		mToast.show();
+		
+		// Vibrate
+		((Vibrator) getSystemService(Context.VIBRATOR_SERVICE)).vibrate(150);
 	}
-
 
 	class BrightnessBinder extends Binder {
 		public AutoBrightnessService getService() {

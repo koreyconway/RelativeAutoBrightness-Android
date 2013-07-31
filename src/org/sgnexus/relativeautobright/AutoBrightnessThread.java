@@ -1,22 +1,18 @@
 package org.sgnexus.relativeautobright;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.hardware.TriggerEvent;
-import android.hardware.TriggerEventListener;
-import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.os.Vibrator;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
 import android.util.Log;
-import android.widget.Toast;
 
-public class AutoBrightnessThread extends TriggerEventListener implements Runnable {
+public class AutoBrightnessThread extends Thread implements SensorEventListener {
 	private final int MAX_BRIGHTNESS = 255;
 	private final int MIN_BRIGHTNESS = 0;
 	private final int MAX_LUX = 1000;
@@ -34,6 +30,7 @@ public class AutoBrightnessThread extends TriggerEventListener implements Runnab
 	private AutoBrightnessService mService;
 	private Handler mHandler;
 	private Thread mThread;
+	private long mLastSense = 0;
 
 	AutoBrightnessThread(AutoBrightnessService service, int relativeLevel) {
 		mService = service;
@@ -58,8 +55,9 @@ public class AutoBrightnessThread extends TriggerEventListener implements Runnab
 			mHandler = new Handler(new Handler.Callback() {
 				@Override
 				public boolean handleMessage(Message msg) {
+					startSensingLight();
 					Log.d(mTag, "handling message");
-					return false;
+					return true;
 				}
 			});
 
@@ -90,20 +88,18 @@ public class AutoBrightnessThread extends TriggerEventListener implements Runnab
 	}
 
 	private void startSensingLight() {
-		//if (!mIsSensingLight) {
-			mSensorManager.requestTriggerSensor(this, mLightSensor);
-			//mSensorManager.registerListener(this, mLightSensor,
-			//		SensorManager.SENSOR_DELAY_NORMAL, mHandler);
-			//mIsSensingLight = true;
-		//}
+		if (!mIsSensingLight) {
+			mSensorManager.registerListener(this, mLightSensor,
+					SensorManager.SENSOR_DELAY_NORMAL, mHandler);
+			mIsSensingLight = true;
+		}
 	}
 
 	private void stopSensingLight() {
-		//if (mIsSensingLight) {
-			//mSensorManager.unregisterListener(this);
-			//mIsSensingLight = false;
-		//}
-		mSensorManager.cancelTriggerSensor(this, mLightSensor);
+		if (mIsSensingLight) {
+			mSensorManager.unregisterListener(this, mLightSensor);
+			mIsSensingLight = false;
+		}
 	}
 
 	public void setRelativeLevel(int level) {
@@ -112,14 +108,8 @@ public class AutoBrightnessThread extends TriggerEventListener implements Runnab
 		updateTargetBrightness();
 		if (mRelativeLevel == MIN_RELATIVE) {
 			mService.toast("Min Brightness Set");
-			// Vibrate
-			((Vibrator) mService.getSystemService(Context.VIBRATOR_SERVICE))
-					.vibrate(150);
 		} else if (mRelativeLevel == MAX_RELATIVE) {
 			mService.toast("Max Brightness Set");
-			// Vibrate
-			((Vibrator) mService.getSystemService(Context.VIBRATOR_SERVICE))
-					.vibrate(150);
 		}
 	}
 
@@ -175,49 +165,22 @@ public class AutoBrightnessThread extends TriggerEventListener implements Runnab
 		}
 	}
 
-//	@Override
-//	public void onAccuracyChanged(Sensor sensor, int accuracy) {
-//		// Don't care about accuracy
-//		return;
-//	}
-
-//	@Override
-//	public void onSensorChanged(SensorEvent event) {
-//		stopSensingLight();
-//
-//		Log.d(mTag, "thread name: " + Thread.currentThread().getName());
-//		// Verify light sensor
-//		if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
-//			// Get lux level
-//			mCurrentLux = event.values[0];
-//			updateTargetBrightness();
-//			Log.d(mTag, "lux level: " + mCurrentLux);
-//		}
-//
-//		try {
-//			Log.d(mTag, "sleeping");
-//			Thread.sleep(3000);
-//		} catch (InterruptedException e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		}
-//
-//		startSensingLight();
-//	}
-
-	@SuppressLint("NewApi")
-	synchronized public void finish() {
-		if (Build.VERSION.SDK_INT >= 18) {
-			mHandler.getLooper().quitSafely();
-		} else {
-			mHandler.getLooper().quit();
-		}
-		mRunning = false;
-		mThread.interrupt();
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int accuracy) {
+		// Don't care about accuracy
+		return;
 	}
 
 	@Override
-	public void onTrigger(TriggerEvent event) {
+	public void onSensorChanged(SensorEvent event) {
+		stopSensingLight();
+
+		long currentTime = System.currentTimeMillis();
+		if ((currentTime - mLastSense) < 1000) {
+			return;
+		}
+
+		mLastSense = currentTime;
 		Log.d(mTag, "thread name: " + Thread.currentThread().getName());
 		// Verify light sensor
 		if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
@@ -227,15 +190,17 @@ public class AutoBrightnessThread extends TriggerEventListener implements Runnab
 			Log.d(mTag, "lux level: " + mCurrentLux);
 		}
 
-//		try {
-//			Log.d(mTag, "sleeping");
-//			Thread.sleep(500);
-//		} catch (InterruptedException e) {
-//			return;
-//		}
-		
-		startSensingLight();
+		mHandler.sendEmptyMessageDelayed(0, 1000);
+		try {
+			Thread.sleep(500);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
-	
 
+	synchronized public void finish() {
+		mHandler.getLooper().quit();
+		mRunning = false;
+		mThread.interrupt();
+	}
 }
