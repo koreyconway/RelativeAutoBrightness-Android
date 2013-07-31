@@ -24,6 +24,7 @@ public class MainActivity extends Activity {
 	private CheckBox mVServiceEnabled;
 	private SeekBar mVBrightnessSeekBar;
 	private AutoBrightnessService mService;
+	private Toast mToast;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -89,19 +90,26 @@ public class MainActivity extends Activity {
 	}
 	
 	private void stopService() {
-		Toast.makeText(getApplicationContext(), "Stopping service",
-				Toast.LENGTH_SHORT).show();
+		toast("Stopping service");
 		this.unbindService(mConnection);
 		super.stopService(new Intent(this, AutoBrightnessService.class));
 	}
 	
 	private void startService() {
-		Toast.makeText(getApplicationContext(), "Starting service",
-				Toast.LENGTH_SHORT).show();
+		toast("Starting service");
 		Intent intent = new Intent(this, AutoBrightnessService.class);
 		intent.putExtra("relativeLevel", mVBrightnessSeekBar.getProgress());
 		super.startService(intent);
 		bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+	}
+	
+	private void toast(CharSequence msg) {
+		if (mToast != null) {
+			mToast.cancel();
+		}
+
+		mToast = Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT);
+		mToast.show();
 	}
 	
 	private ServiceConnection mConnection = new ServiceConnection() {

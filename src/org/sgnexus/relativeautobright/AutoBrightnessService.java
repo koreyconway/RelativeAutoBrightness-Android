@@ -5,14 +5,16 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
+import android.widget.Toast;
 
 public class AutoBrightnessService extends Service {
 	private AutoBrightnessThread mThread;
 	private String mTag = this.getClass().getSimpleName();
+	private Toast mToast;
 
 	private void init(int initialRelativeLevel) {
 		mThread = new AutoBrightnessThread(this, initialRelativeLevel);
-		mThread.start();
+		new Thread(mThread).start();
 	}
 
 	@Override
@@ -39,6 +41,16 @@ public class AutoBrightnessService extends Service {
 		mThread.finish();
 		super.onDestroy();
 	}
+	
+	synchronized public void toast(CharSequence msg) {
+		if (mToast != null) {
+			mToast.cancel();
+		}
+
+		mToast = Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT);
+		mToast.show();
+	}
+
 
 	class BrightnessBinder extends Binder {
 		public AutoBrightnessService getService() {
