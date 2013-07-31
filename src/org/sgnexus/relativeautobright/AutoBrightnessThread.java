@@ -1,10 +1,15 @@
 package org.sgnexus.relativeautobright;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.os.Vibrator;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
@@ -27,6 +32,7 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 	private boolean mRunning = false;
 	private boolean mIsSensingLight = false;
 	private AutoBrightnessService mService;
+	private Handler mHandler;
 
 	AutoBrightnessThread(AutoBrightnessService service, int relativeLevel) {
 		mService = service;
@@ -37,16 +43,7 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 	@Override
 	public void run() {
 		init();
-
-		while (mRunning) {
-			try {
-				Thread.sleep(3000);
-			} catch (InterruptedException e) {
-				// Ignore
-			}
-		}
-
-		// clean up
+		Looper.loop();
 		stopSensingLight();
 		return;
 	}
@@ -54,6 +51,15 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 	private void init() {
 		if (!mRunning) {
 			mRunning = true;
+
+			Looper.prepare();
+			mHandler = new Handler(new Handler.Callback() {
+				@Override
+				public boolean handleMessage(Message msg) {
+					Log.d(mTag, "handling message");
+					return false;
+				}
+			});
 
 			// Get the current system brightness
 			try {
@@ -76,11 +82,15 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 					Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
 		}
 	}
-	
+
+	public Handler getHandler() {
+		return mHandler;
+	}
+
 	private void startSensingLight() {
 		if (!mIsSensingLight) {
 			mSensorManager.registerListener(this, mLightSensor,
-					SensorManager.SENSOR_DELAY_NORMAL);
+					SensorManager.SENSOR_DELAY_NORMAL, mHandler);
 			mIsSensingLight = true;
 		}
 	}
@@ -173,6 +183,8 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 
 	@Override
 	public void onSensorChanged(SensorEvent event) {
+		stopSensingLight();
+
 		Log.d(mTag, "thread name: " + Thread.currentThread().getName());
 		// Verify light sensor
 		if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
@@ -181,9 +193,25 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 			updateTargetBrightness();
 			Log.d(mTag, "lux level: " + mCurrentLux);
 		}
+
+		try {
+			Log.d(mTag, "sleeping");
+			Thread.sleep(3000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		startSensingLight();
 	}
 
+	@SuppressLint("NewApi")
 	synchronized public void finish() {
+		if (Build.VERSION.SDK_INT >= 18) {
+			mHandler.getLooper().quitSafely();
+		} else {
+			mHandler.getLooper().quit();
+		}
 		mRunning = false;
 		this.interrupt();
 	}
