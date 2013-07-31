@@ -25,6 +25,7 @@ public class MainActivity extends Activity {
 	private SeekBar mVBrightnessSeekBar;
 	private AutoBrightnessService mService;
 	private Toast mToast;
+	private String mTag = this.getClass().getSimpleName();
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -32,7 +33,7 @@ public class MainActivity extends Activity {
 		setContentView(R.layout.activity_main);
 		mVServiceEnabled = (CheckBox) findViewById(R.id.serviceEnabled);
 		mVBrightnessSeekBar = (SeekBar) findViewById(R.id.brightnessSeekBar);
-		
+
 		this.mVBrightnessSeekBar
 				.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
 					@Override
@@ -88,13 +89,13 @@ public class MainActivity extends Activity {
 		}
 		return false;
 	}
-	
+
 	private void stopService() {
 		toast("Stopping service");
 		this.unbindService(mConnection);
 		super.stopService(new Intent(this, AutoBrightnessService.class));
 	}
-	
+
 	private void startService() {
 		toast("Starting service");
 		Intent intent = new Intent(this, AutoBrightnessService.class);
@@ -102,20 +103,21 @@ public class MainActivity extends Activity {
 		super.startService(intent);
 		bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
 	}
-	
+
 	private void toast(CharSequence msg) {
 		if (mToast != null) {
 			mToast.cancel();
 		}
 
-		mToast = Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT);
+		mToast = Toast.makeText(getApplicationContext(), msg,
+				Toast.LENGTH_SHORT);
 		mToast.show();
 	}
-	
+
 	private ServiceConnection mConnection = new ServiceConnection() {
 		@Override
 		public void onServiceConnected(ComponentName className, IBinder binder) {
-			mService = ((BrightnessBinder)binder).getService();
+			mService = ((BrightnessBinder) binder).getService();
 		}
 
 		@Override

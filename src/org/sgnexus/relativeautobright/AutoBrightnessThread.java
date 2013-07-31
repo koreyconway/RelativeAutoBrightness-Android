@@ -31,6 +31,7 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 	private Handler mHandler;
 	private Thread mThread;
 	private long mLastSense = 0;
+	private int mSenseIntervalMs = 8000;
 
 	AutoBrightnessThread(AutoBrightnessService service, int relativeLevel) {
 		mService = service;
@@ -55,8 +56,13 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 			mHandler = new Handler(new Handler.Callback() {
 				@Override
 				public boolean handleMessage(Message msg) {
-					startSensingLight();
-					Log.d(mTag, "handling message");
+					if (msg.what < 0) {
+						Log.d(mTag, "starting light sensor");
+						startSensingLight();
+					} else {
+						Log.d(mTag, "setting relative level");
+						setRelativeLevel(msg.what);
+					}
 					return true;
 				}
 			});
@@ -102,7 +108,7 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 		}
 	}
 
-	public void setRelativeLevel(int level) {
+	private void setRelativeLevel(int level) {
 		mRelativeLevel = level;
 		Log.d(mTag, "new level: " + level);
 		updateTargetBrightness();
@@ -176,7 +182,7 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 		stopSensingLight();
 
 		long currentTime = System.currentTimeMillis();
-		if ((currentTime - mLastSense) < 1000) {
+		if ((currentTime - mLastSense) < mSenseIntervalMs) {
 			return;
 		}
 
@@ -190,11 +196,11 @@ public class AutoBrightnessThread extends Thread implements SensorEventListener 
 			Log.d(mTag, "lux level: " + mCurrentLux);
 		}
 
-		mHandler.sendEmptyMessageDelayed(0, 1000);
+		mHandler.sendEmptyMessageDelayed(-1, mSenseIntervalMs);
 		try {
 			Thread.sleep(500);
 		} catch (InterruptedException e) {
-			e.printStackTrace();
+			return;
 		}
 	}
 

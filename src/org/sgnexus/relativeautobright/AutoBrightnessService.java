@@ -4,6 +4,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Vibrator;
 import android.util.Log;
@@ -14,15 +15,19 @@ public class AutoBrightnessService extends Service {
 	private String mTag = this.getClass().getSimpleName();
 	private Toast mToast;
 	private boolean mRunning = false;
+	private Handler mHandler;
 
 	private void init(int initialRelativeLevel) {
 		if (!mRunning) {
 			mRunning = true;
-			mToast = new Toast(getApplicationContext());
-			mToast.setDuration(Toast.LENGTH_SHORT);
+			mHandler = new Handler();
 			mThread = new AutoBrightnessThread(this, initialRelativeLevel);
 			mThread.start();
 		}
+	}
+
+	public Handler getHandler() {
+		return mHandler;
 	}
 
 	@Override
@@ -40,7 +45,9 @@ public class AutoBrightnessService extends Service {
 	}
 
 	public void setRelativeLevel(int level) {
-		mThread.setRelativeLevel(level);
+		mThread.interrupt();
+		mThread.getHandler().sendEmptyMessage(level);
+		// mThread.setRelativeLevel(level);
 	}
 
 	@Override
@@ -51,13 +58,22 @@ public class AutoBrightnessService extends Service {
 		super.onDestroy();
 	}
 
-	synchronized public void toast(CharSequence msg) {
-		mToast.cancel();
-		mToast.setText(msg);
-		mToast.show();
-		
-		// Vibrate
-		((Vibrator) getSystemService(Context.VIBRATOR_SERVICE)).vibrate(150);
+	synchronized public void toast(final CharSequence msg) {
+		mHandler.post(new Runnable() {
+			@Override
+			public void run() {
+				if (mToast != null) {
+					mToast.cancel();
+				}
+
+				mToast = Toast.makeText(getApplicationContext(), msg,
+						Toast.LENGTH_SHORT);
+				mToast.show();
+
+				// Vibrate
+				((Vibrator) getSystemService(Context.VIBRATOR_SERVICE)).vibrate(150);							
+			}
+		});
 	}
 
 	class BrightnessBinder extends Binder {
