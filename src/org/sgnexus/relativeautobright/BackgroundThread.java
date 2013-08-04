@@ -20,11 +20,14 @@ public class BackgroundThread extends Thread implements SensorEventListener {
 	static final int ACTION_SENSOR_ON = -1;
 	static final int ACTION_SCREEN_ON = -2;
 	static final int ACTION_SCREEN_OFF = -3;
+	static final int ACTION_DECREASE_LEVEL = -4;
+	static final int ACTION_INCREASE_LEVEL = -5;
 
 	static private final int MAX_BRIGHTNESS = 255, MIN_BRIGHTNESS = 0;
 	static private final int MIN_RELATIVE = 0, MAX_RELATIVE = 100;
 	static private final int MAX_LUX = 300;
 	static private final int DEFAULT_SENSE_INTERVAL = 1000;
+	static private final int INCREASE_INTERVAL = 15;
 
 	private SensorManager mSensorManager;
 	private Sensor mLightSensor;
@@ -92,6 +95,10 @@ public class BackgroundThread extends Thread implements SensorEventListener {
 						Log.d(mTag, "starting light sensor");
 						startSensingLight();
 					}
+				} else if (actionId == ACTION_DECREASE_LEVEL) {
+					setRelativeLevel(mRelativeLevel - INCREASE_INTERVAL);
+				} else if (actionId == ACTION_INCREASE_LEVEL) {
+					setRelativeLevel(mRelativeLevel + INCREASE_INTERVAL);
 				} else if (actionId >= 0) {
 					Log.d(mTag, "setting relative level");
 					setRelativeLevel(msg.what);
@@ -119,9 +126,12 @@ public class BackgroundThread extends Thread implements SensorEventListener {
 	}
 
 	private void setRelativeLevel(int level) {
-		mRelativeLevel = level;
-		Log.d(mTag, "new level: " + level);
-		updateScreenBrightness();
+		level = Math.min(Math.max(MIN_RELATIVE, level), MAX_RELATIVE);
+		if (level != mRelativeLevel) {
+			mRelativeLevel = level;
+			Log.d(mTag, "new level: " + level);
+			updateScreenBrightness();
+		}
 	}
 
 	@Override
@@ -145,12 +155,13 @@ public class BackgroundThread extends Thread implements SensorEventListener {
 			// Get lux level
 			float oldLux = mCurrentLux;
 			mCurrentLux = event.values[0];
-			
+
 			// Only update if lux has changed
 			if (Math.abs(mCurrentLux - oldLux) > 0.1) {
 				stopSensingLight();
 				updateScreenBrightness();
-				mHandler.sendEmptyMessageDelayed(ACTION_SENSOR_ON, mSenseIntervalMs);
+				mHandler.sendEmptyMessageDelayed(ACTION_SENSOR_ON,
+						mSenseIntervalMs);
 			} else {
 				Log.d(mTag, "not updating");
 			}
