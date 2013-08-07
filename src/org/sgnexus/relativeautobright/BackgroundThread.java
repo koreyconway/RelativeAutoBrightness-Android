@@ -1,6 +1,7 @@
 package org.sgnexus.relativeautobright;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -9,6 +10,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Vibrator;
+import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
 import android.util.Log;
@@ -27,7 +29,7 @@ public class BackgroundThread extends Thread implements SensorEventListener {
 	static private final int MIN_RELATIVE = 0, MAX_RELATIVE = 100;
 	static private final int MAX_LUX = 300;
 	static private final int DEFAULT_SENSE_INTERVAL = 1000;
-	static private final int INCREASE_INTERVAL = 15;
+	static private final int INCREASE_INTERVAL = 10;
 
 	private SensorManager mSensorManager;
 	private Sensor mLightSensor;
@@ -43,6 +45,7 @@ public class BackgroundThread extends Thread implements SensorEventListener {
 	private Toast mToast;
 	private boolean mScreenIsOn = true;
 	private boolean mLevelIsAbsolute = false;
+	private SharedPreferences mPrefs;
 
 	BackgroundThread(MainService service, int initialRelativeLevel) {
 		mService = service;
@@ -72,6 +75,9 @@ public class BackgroundThread extends Thread implements SensorEventListener {
 		mLightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
 		startSensingLight();
 
+		// Load the app preferences
+		mPrefs = PreferenceManager.getDefaultSharedPreferences(mService);
+
 		// Setup looper and handler
 		Looper.prepare();
 		mHandler = new Handler(new Handler.Callback() {
@@ -96,9 +102,15 @@ public class BackgroundThread extends Thread implements SensorEventListener {
 						startSensingLight();
 					}
 				} else if (actionId == ACTION_DECREASE_LEVEL) {
-					setRelativeLevel(mRelativeLevel - INCREASE_INTERVAL);
+					// Set and save new relative level
+					int newLevel = mRelativeLevel - INCREASE_INTERVAL;
+					setRelativeLevel(newLevel);
+					mPrefs.edit().putInt("relativeLevel", newLevel).apply();
 				} else if (actionId == ACTION_INCREASE_LEVEL) {
+					// Set and save new relative level
+					int newLevel = mRelativeLevel + INCREASE_INTERVAL;
 					setRelativeLevel(mRelativeLevel + INCREASE_INTERVAL);
+					mPrefs.edit().putInt("relativeLevel", newLevel).apply();
 				} else if (actionId >= 0) {
 					Log.d(mTag, "setting relative level");
 					setRelativeLevel(msg.what);

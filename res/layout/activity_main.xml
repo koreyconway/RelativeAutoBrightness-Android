@@ -15,7 +15,7 @@
         android:layout_centerVertical="true" />
 
     <TextView
-        android:id="@+id/textView2"
+        android:id="@+id/lblRelativeLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_above="@+id/brightnessSeekBar"
@@ -32,5 +32,25 @@
         android:layout_centerHorizontal="true"
         android:layout_marginTop="45dp"
         android:text="Enable Service" />
+
+    <TextView
+        android:id="@+id/brightness"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignRight="@+id/brightnessSeekBar"
+        android:layout_below="@+id/brightnessSeekBar"
+        android:layout_marginRight="56dp"
+        android:layout_marginTop="32dp"
+        android:text="TextView" />
+
+    <TextView
+        android:id="@+id/lblScreenLevel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBaseline="@+id/brightness"
+        android:layout_alignBottom="@+id/brightness"
+        android:layout_alignLeft="@+id/brightnessSeekBar"
+        android:layout_marginLeft="38dp"
+        android:text="Screen Level:" />
 
 </RelativeLayout>

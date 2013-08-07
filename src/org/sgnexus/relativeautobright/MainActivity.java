@@ -86,7 +86,17 @@ public class MainActivity extends Activity {
 	@Override
 	protected void onResume() {
 		super.onResume();
+
+		// Check if we are even still running and update the checkbox
 		mVServiceEnabled.setChecked(isServiceRunning());
+
+		// Read the prefs then set seekbar progress (might have changed from
+		// notification area)
+		int relativeLevel = PreferenceManager.getDefaultSharedPreferences(this)
+				.getInt("relativeLevel", mVBrightnessSeekBar.getProgress());
+		mVBrightnessSeekBar.setProgress(relativeLevel);
+		
+		Log.d(mTag, "resuming");
 	}
 
 	private void setRelativeLevel(int relativeLevel) {
