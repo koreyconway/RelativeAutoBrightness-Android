@@ -17,12 +17,14 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.Vibrator;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.widget.RemoteViews;
+import android.widget.Toast;
 
 public class MainService extends Service implements
 		OnSharedPreferenceChangeListener, SensorEventListener {
@@ -41,14 +43,23 @@ public class MainService extends Service implements
 	private int mBrightness;
 
 	final private static int LUX_DIFF_THRESHOLD = 0;
-	final private static int LAST_BRIGHTNESS_CHANGE_THRESHOLD_MS = 300;
+	final private static int LAST_BRIGHTNESS_CHANGE_MS_THRESHOLD = 300;
+
 	final private static int DEFAULT_RELATIVE_LEVEL = 50;
+	final private static int DEFAULT_BRIGHTNESS = 100;
+
 	final private static String RELATIVE_LEVEL_KEY = "relativeLevel";
+	final private static String SERVICE_ENABLED_KEY = "serviceEnabled";
+
+	final private static int MIN_RELATIVE_LEVEL = 0;
+	final private static int MAX_RELATIVE_LEVEL = 100;
+	final private static int MIN_BRIGHTNESS = 0;
+	final private static int MAX_BRIGHTNESS = 255;
+
 	final private static int INCREASE_LEVEL = 10; // TODO put this in advanced
 													// preferences
-	final private static int MIN_RELATIVE_LEVEL = 0;
-	final private static int MAX_RELATIVE_LEVEL = 255;
-	final private static int DEFAULT_BRIGHTNESS = 100;
+
+	final private Handler HANDLER = new Handler(); // for caching only
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
@@ -126,7 +137,7 @@ public class MainService extends Service implements
 		unregisterReceiver(mScreenReceiver);
 		getContentResolver().unregisterContentObserver(mSettingsObserver);
 		mPrefs.unregisterOnSharedPreferenceChangeListener(this);
-		mPrefs.edit().putBoolean("serviceEnabled", false);
+		mPrefs.edit().putBoolean(SERVICE_ENABLED_KEY, false);
 		this.stopForeground(true);
 		super.onDestroy();
 	}
@@ -148,19 +159,16 @@ public class MainService extends Service implements
 
 	private void pauseSensingLight(long delay) {
 		mSensorManager.unregisterListener(this, mLightSensor);
-		new Handler(Looper.myLooper()).postDelayed(new Runnable() {
-
+		HANDLER.postDelayed(new Runnable() {
 			@Override
 			public void run() {
 				startSensingLight();
 			}
-
 		}, delay);
 	}
 
 	private void enableSensingLight() {
 		mIsSensingEnabled = true;
-		startSensingLight();
 	}
 
 	private void disableSensingLight() {
@@ -187,13 +195,32 @@ public class MainService extends Service implements
 	}
 
 	private void updateBrightness() {
-		int newBrightness = (int) ((mLux / 30) + (mRelativeLevel / 2));
+		int newBrightness;
+
+		if (mRelativeLevel == MIN_RELATIVE_LEVEL) {
+			newBrightness = MIN_BRIGHTNESS;
+			disableSensingLight();
+			buzz();
+		} else if (mRelativeLevel == MAX_RELATIVE_LEVEL) {
+			newBrightness = MAX_BRIGHTNESS;
+			disableSensingLight();
+			buzz();
+		} else {
+			newBrightness = (int) ((mLux / 30) + (mRelativeLevel / 2));
+			enableSensingLight();
+			startSensingLight();
+		}
+
 		if (newBrightness != mBrightness) {
 			mBrightness = newBrightness;
 			Settings.System.putInt(getContentResolver(),
 					Settings.System.SCREEN_BRIGHTNESS, mBrightness);
 			mLastBrightnessChangeMs = System.currentTimeMillis();
 		}
+	}
+
+	private void buzz() {
+		((Vibrator) getSystemService(Context.VIBRATOR_SERVICE)).vibrate(150);
 	}
 
 	@Override
@@ -265,9 +292,12 @@ public class MainService extends Service implements
 		@Override
 		public void onReceive(Context context, Intent intent) {
 			if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
+				Log.d(mTag, "screen off");
 				disableSensingLight();
 			} else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
+				Log.d(mTag, "screen on");
 				enableSensingLight();
+				startSensingLight();
 			}
 		}
 	}
@@ -283,7 +313,7 @@ public class MainService extends Service implements
 			if ("content://settings/system/screen_brightness".equals(uri
 					.toString())) {
 				// Stop service if brightness was modified by another app
-				if ((System.currentTimeMillis() - mLastBrightnessChangeMs) > LAST_BRIGHTNESS_CHANGE_THRESHOLD_MS) {
+				if ((System.currentTimeMillis() - mLastBrightnessChangeMs) > LAST_BRIGHTNESS_CHANGE_MS_THRESHOLD) {
 					Log.d(mTag, "Brightness changed outside of app");
 					stopSelf();
 				}
