@@ -1,0 +1,257 @@
+package org.sgnexus.relativeautobright;
+
+import java.util.HashMap;
+import java.util.Observable;
+import java.util.Observer;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
+import android.database.ContentObserver;
+import android.net.Uri;
+import android.os.Handler;
+import android.preference.PreferenceManager;
+import android.provider.Settings;
+import android.util.Log;
+
+public class Data extends Observable implements
+		OnSharedPreferenceChangeListener {
+	final private String mTag = this.getClass().getSimpleName();
+	static private Data sInstance;
+	private SharedPreferences mPrefs;
+	private Context mContext;
+	private SettingsContentObserver mSettingsObserver;
+
+	// private LinkedList<Observer> observers = new LinkedList<Observer>();
+
+	private HashMap<String, Object> values = new HashMap<String, Object>();
+
+	final public static String SERVICE_ENABLED = "serviceEnabled";
+	final public static String RELATIVE_LEVEL = "relativeLevel";
+	final public static String LUX = "lux";
+	final public static String BRIGHTNESS = "brightness";
+	final public static String BRIGHTNESS_MODE = "brightnessMode";
+
+	public static final int MIN_BRIGHTNESS = 0;
+	public static final int MAX_BRIGHTNESS = 255;
+
+	private Data(Context context) {
+		mContext = context;
+		mPrefs = PreferenceManager.getDefaultSharedPreferences(context);
+
+		// Set initial data values
+		putBoolean(SERVICE_ENABLED, mPrefs.getBoolean(SERVICE_ENABLED, false));
+		putInt(RELATIVE_LEVEL, mPrefs.getInt(RELATIVE_LEVEL, 50));
+		putInt(LUX, 1);
+		putInt(BRIGHTNESS, Settings.System.getInt(
+				mContext.getContentResolver(),
+				Settings.System.SCREEN_BRIGHTNESS, 0));
+		putInt(BRIGHTNESS_MODE, Settings.System.getInt(
+				mContext.getContentResolver(),
+				Settings.System.SCREEN_BRIGHTNESS_MODE, 0));
+
+		// Setup listeners
+		mPrefs.registerOnSharedPreferenceChangeListener(this);
+		mSettingsObserver = new SettingsContentObserver();
+		mContext.getContentResolver()
+				.registerContentObserver(
+						Uri.withAppendedPath(
+								android.provider.Settings.System.CONTENT_URI,
+								android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE),
+						true, mSettingsObserver);
+		mContext.getContentResolver().registerContentObserver(
+				Uri.withAppendedPath(
+						android.provider.Settings.System.CONTENT_URI,
+						android.provider.Settings.System.SCREEN_BRIGHTNESS),
+				true, mSettingsObserver);
+	}
+
+	static public Data getInstance(Context context) {
+		if (sInstance == null) {
+			sInstance = new Data(context);
+		}
+
+		return sInstance;
+	}
+
+	public void setRelativeLevel(int level) {
+		setRelativeLevel(level, false);
+	}
+
+	public void setRelativeLevel(int level, boolean saveInSharedPrefs) {
+		level = Math.min(Math.max(level, MIN_BRIGHTNESS), MAX_BRIGHTNESS);
+
+		if (saveInSharedPrefs) {
+			mPrefs.edit().putInt(RELATIVE_LEVEL, level).commit();
+		}
+
+		put(BRIGHTNESS_MODE, level);
+	}
+
+	public int getRelativeLevel() {
+		return getInt(RELATIVE_LEVEL);
+	}
+
+	public void setBrightnessMode(int mode) {
+		int prevMode = getBrightnessMode();
+
+		if (prevMode != mode) {
+			Settings.System.putInt(mContext.getContentResolver(),
+					Settings.System.SCREEN_BRIGHTNESS_MODE, mode);
+		}
+
+		putInt(BRIGHTNESS_MODE, mode);
+	}
+
+	public int getBrightnessMode() {
+		return getInt(BRIGHTNESS_MODE);
+	}
+
+	public void setServiceEnabled(boolean enabled) {
+		putBoolean(SERVICE_ENABLED, enabled);
+	}
+
+	public boolean getServiceEnabled() {
+		return getBoolean(SERVICE_ENABLED);
+	}
+
+	public void setBrightness(int brightness) {
+		int prevBrightness = getBrightness();
+
+		if (prevBrightness != brightness) {
+			Settings.System.putInt(mContext.getContentResolver(),
+					Settings.System.SCREEN_BRIGHTNESS, brightness);
+		}
+
+		putInt(BRIGHTNESS, brightness);
+
+	}
+
+	public int getBrightness() {
+		return getInt(BRIGHTNESS);
+	}
+
+	public void setLux(int lux) {
+		putInt(LUX, lux);
+	}
+
+	public int getLux() {
+		return getInt(LUX);
+	}
+
+	private void put(String key, Object value) {
+		Log.d(mTag, "Putting: " + key);
+
+		if (!value.equals(values.get(key))) {
+			values.put(key, value);
+			setChanged();
+			notifyObservers(key);
+		}
+	}
+
+	private void putBoolean(String key, Boolean value) {
+		put(key, value);
+	}
+
+	private boolean getBoolean(String key) {
+		return ((Boolean) values.get(key)).booleanValue();
+	}
+
+	private void putInt(String key, Integer value) {
+		put(key, value);
+	}
+
+	private int getInt(String key) {
+		return ((Integer) values.get(key)).intValue();
+	}
+
+	// private void putFloat(String key, Float value) {
+	// put(key, value);
+	// }
+	//
+	// private float getFloat(String key) {
+	// return ((Float) values.get(key)).floatValue();
+	// }
+
+	@Override
+	public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
+		if (key.equals(RELATIVE_LEVEL)) {
+			putInt(key, prefs.getInt(key, 0));
+		} else if (key.equals(SERVICE_ENABLED)) {
+			putBoolean(key, prefs.getBoolean(key, false));
+		}
+	}
+
+	private class SettingsContentObserver extends ContentObserver {
+
+		public SettingsContentObserver() {
+			super(new Handler());
+		}
+
+		@Override
+		public void onChange(boolean selfChange, Uri uri) {
+			if ("content://settings/system/screen_brightness".equals(uri
+					.toString())) {
+				putInt(BRIGHTNESS, Settings.System.getInt(
+						mContext.getContentResolver(),
+						Settings.System.SCREEN_BRIGHTNESS, 0));
+			} else if ("content://settings/system/screen_brightness_mode"
+					.equals(uri.toString())) {
+				putInt(BRIGHTNESS_MODE, Settings.System.getInt(
+						mContext.getContentResolver(),
+						Settings.System.SCREEN_BRIGHTNESS_MODE, 0));
+			}
+		}
+
+	}
+
+	@Override
+	public synchronized void deleteObserver(Observer observer) {
+		super.deleteObserver(observer);
+
+		if (countObservers() == 0) {
+			onFinish();
+		}
+	}
+
+	@Override
+	public synchronized void deleteObservers() {
+		super.deleteObservers();
+		onFinish();
+	}
+
+	public void onFinish() {
+		mPrefs.unregisterOnSharedPreferenceChangeListener(this);
+		mContext.getContentResolver().unregisterContentObserver(
+				mSettingsObserver);
+	}
+
+	// @Override
+	// public void addObserver(Observer observer) {
+	// observers.add(observer);
+	// }
+	//
+	// @Override
+	// public void notifyObservers() {
+	// for (Observer o : observers) {
+	// o.update(this, null);
+	// }
+	// clearChanged();
+	// }
+	//
+	// @Override
+	// public void notifyObservers(Object data) {
+	// for (Observer o : observers) {
+	// Log.d(mTag, "notifying: " + o.getClass().getSimpleName());
+	// o.update(this, data);
+	// Log.d(mTag, "notified: " + o.getClass().getSimpleName());
+	// }
+	// clearChanged();
+	// }
+	//
+	// @Override
+	// public int countObservers() {
+	// return observers.size();
+	// }
+
+}

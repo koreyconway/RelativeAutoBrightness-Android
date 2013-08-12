@@ -26,12 +26,13 @@
     </PreferenceScreen>
 
     <Preference
-        android:key="currentBrightness"
+        android:key="brightness"
         android:persistent="false"
         android:selectable="false"
         android:title="Current Brightness: 50" />
+
     <Preference
-        android:key="currentLux"
+        android:key="lux"
         android:persistent="false"
         android:selectable="false"
         android:title="Current Lux: 50" />

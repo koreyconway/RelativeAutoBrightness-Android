@@ -1,32 +1,35 @@
 package org.sgnexus.relativeautobright;
 
+import java.util.Observable;
+import java.util.Observer;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.Bundle;
+import android.preference.Preference;
 import android.preference.PreferenceFragment;
-import android.preference.PreferenceManager;
 import android.preference.SwitchPreference;
 import android.util.Log;
 import android.widget.Toast;
 
-public class SettingsFragment extends PreferenceFragment implements
-		OnSharedPreferenceChangeListener {
-	private String mTag = this.getClass().getSimpleName();
+public class SettingsFragment extends PreferenceFragment implements Observer {
+	final private String mTag = this.getClass().getSimpleName();
+
 	private SwitchPreference mServiceEnabledPref;
-	final private static String SERVICE_ENABLED_KEY = "serviceEnabled";
-	final private static String RELATIVE_LEVEL_KEY = "relativeLevel";
+	private Preference mLuxPref;
+	private Preference mBrightnessPref;
 	private Context mContext;
-	private SharedPreferences mPrefs;
 	private Toast mToast;
+	private Data mData;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		addPreferencesFromResource(R.xml.preferences);
-		mServiceEnabledPref = (SwitchPreference) findPreference(SERVICE_ENABLED_KEY);
+		mServiceEnabledPref = (SwitchPreference) findPreference(Data.SERVICE_ENABLED);
+		mLuxPref = (Preference) findPreference(Data.LUX);
+		mBrightnessPref = (Preference) findPreference(Data.BRIGHTNESS);
 	}
 
 	@Override
@@ -36,22 +39,17 @@ public class SettingsFragment extends PreferenceFragment implements
 		super.onResume();
 
 		// Check if service is active and update UI accordingly
-		boolean isServiceRunning = mPrefs
-				.getBoolean(SERVICE_ENABLED_KEY, false);
+		boolean isServiceRunning = mData.getServiceEnabled();
 		if (isServiceRunning != mServiceEnabledPref.isChecked()) {
 			mServiceEnabledPref.setChecked(isServiceRunning);
 		}
 
 		// TODO update the seekbar if relative level changed
-
-		mPrefs.registerOnSharedPreferenceChangeListener(this);
 	}
 
 	@Override
 	public void onPause() {
 		Log.d(mTag, "on pause");
-
-		mPrefs.unregisterOnSharedPreferenceChangeListener(this);
 		super.onPause();
 	}
 
@@ -59,13 +57,15 @@ public class SettingsFragment extends PreferenceFragment implements
 	public void onAttach(Activity activity) {
 		Log.d(mTag, "on attach");
 		super.onAttach(activity);
-		mContext = activity;
-		mPrefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+		mContext = activity.getApplicationContext();
+		mData = Data.getInstance(mContext);
+		mData.addObserver(this);
 	}
 
 	@Override
 	public void onDetach() {
 		Log.d(mTag, "on detach");
+		mData.deleteObserver(this);
 		mContext = null;
 		super.onDetach();
 	}
@@ -91,13 +91,21 @@ public class SettingsFragment extends PreferenceFragment implements
 	}
 
 	@Override
-	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences,
-			String key) {
-		if (SERVICE_ENABLED_KEY.equals(key)) {
-			boolean enabled = sharedPreferences.getBoolean(key, false);
-			setServiceEnabled(enabled);
-		} else if (RELATIVE_LEVEL_KEY.equals(key)) {
+	public void update(Observable observable, Object data) {
+		String key = (String) data;
+
+		Log.d(mTag, "update fragment: " + key);
+
+		if (Data.SERVICE_ENABLED.equals(key)) {
+			setServiceEnabled(mData.getServiceEnabled());
+		} else if (Data.RELATIVE_LEVEL.equals(key)) {
 			// TODO update the seekbar
+		} else if (Data.LUX.equals(key)) {
+			mLuxPref.setTitle("Lux : " + mData.getLux());
+		} else if (Data.BRIGHTNESS.equals(key)) {
+			int brightnessPercentage = (mData.getBrightness() * 100 / Data.MAX_BRIGHTNESS);
+			mBrightnessPref.setTitle("Brightness : " + brightnessPercentage
+					+ "%");
 		}
 	}
 
