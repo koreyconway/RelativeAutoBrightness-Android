@@ -31,9 +31,17 @@ public class Data extends Observable implements
 	final public static String LUX = "lux";
 	final public static String BRIGHTNESS = "brightness";
 	final public static String BRIGHTNESS_MODE = "brightnessMode";
+	final public static String SENSE_INTERVAL = "senseIntervalMs";
 
 	public static final int MIN_BRIGHTNESS = 0;
 	public static final int MAX_BRIGHTNESS = 255;
+	public static final int MIN_RELATIVE_LEVEL = 0;
+	public static final int MAX_RELATIVE_LEVEL = 100;
+
+	// todo: put these in advanced preferences
+	final public static int LUX_DIFF_THRESHOLD = 0;
+	final public static int INCREASE_LEVEL = 10;
+	final public static int DEFAULT_SENSE_INTERVAL = 2000;
 
 	private Data(Context context) {
 		mContext = context;
@@ -49,6 +57,8 @@ public class Data extends Observable implements
 		putInt(BRIGHTNESS_MODE, Settings.System.getInt(
 				mContext.getContentResolver(),
 				Settings.System.SCREEN_BRIGHTNESS_MODE, 0));
+		putInt(SENSE_INTERVAL,
+				Integer.parseInt(mPrefs.getString(SENSE_INTERVAL, "5000")));
 
 		// Setup listeners
 		mPrefs.registerOnSharedPreferenceChangeListener(this);
@@ -79,13 +89,14 @@ public class Data extends Observable implements
 	}
 
 	public void setRelativeLevel(int level, boolean saveInSharedPrefs) {
-		level = Math.min(Math.max(level, MIN_BRIGHTNESS), MAX_BRIGHTNESS);
+		level = Math.min(Math.max(level, MIN_RELATIVE_LEVEL),
+				MAX_RELATIVE_LEVEL);
 
 		if (saveInSharedPrefs) {
 			mPrefs.edit().putInt(RELATIVE_LEVEL, level).commit();
+			putInt(BRIGHTNESS_MODE, level);
 		}
 
-		put(BRIGHTNESS_MODE, level);
 	}
 
 	public int getRelativeLevel() {
@@ -98,9 +109,9 @@ public class Data extends Observable implements
 		if (prevMode != mode) {
 			Settings.System.putInt(mContext.getContentResolver(),
 					Settings.System.SCREEN_BRIGHTNESS_MODE, mode);
+			putInt(BRIGHTNESS_MODE, mode);
 		}
 
-		putInt(BRIGHTNESS_MODE, mode);
 	}
 
 	public int getBrightnessMode() {
@@ -117,13 +128,14 @@ public class Data extends Observable implements
 
 	public void setBrightness(int brightness) {
 		int prevBrightness = getBrightness();
+		brightness = Math.min(Math.max(brightness, MIN_BRIGHTNESS),
+				MAX_BRIGHTNESS);
 
 		if (prevBrightness != brightness) {
 			Settings.System.putInt(mContext.getContentResolver(),
 					Settings.System.SCREEN_BRIGHTNESS, brightness);
+			putInt(BRIGHTNESS, brightness);
 		}
-
-		putInt(BRIGHTNESS, brightness);
 
 	}
 
@@ -131,12 +143,21 @@ public class Data extends Observable implements
 		return getInt(BRIGHTNESS);
 	}
 
-	public void setLux(int lux) {
-		putInt(LUX, lux);
+	public void setLux(float lux) {
+		putFloat(LUX, lux);
 	}
 
-	public int getLux() {
-		return getInt(LUX);
+	public float getLux() {
+		return getFloat(LUX);
+	}
+
+	// public void setSenseInterval(int intervalMs) {
+	// putInt(SENSE_INTERVAL, intervalMs);
+	// Log.d(mTag, "sense interval set to: " + intervalMs + " ms");
+	// }
+
+	public int getSenseInterval() {
+		return getInt(SENSE_INTERVAL);
 	}
 
 	private void put(String key, Object value) {
@@ -165,13 +186,13 @@ public class Data extends Observable implements
 		return ((Integer) values.get(key)).intValue();
 	}
 
-	// private void putFloat(String key, Float value) {
-	// put(key, value);
-	// }
-	//
-	// private float getFloat(String key) {
-	// return ((Float) values.get(key)).floatValue();
-	// }
+	private void putFloat(String key, Float value) {
+		put(key, value);
+	}
+
+	private float getFloat(String key) {
+		return ((Float) values.get(key)).floatValue();
+	}
 
 	@Override
 	public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
@@ -179,6 +200,8 @@ public class Data extends Observable implements
 			putInt(key, prefs.getInt(key, 0));
 		} else if (key.equals(SERVICE_ENABLED)) {
 			putBoolean(key, prefs.getBoolean(key, false));
+		} else if (key.equals(SENSE_INTERVAL)) {
+			putInt(key, Integer.parseInt(prefs.getString(key, "5000")));
 		}
 	}
 
@@ -225,33 +248,5 @@ public class Data extends Observable implements
 		mContext.getContentResolver().unregisterContentObserver(
 				mSettingsObserver);
 	}
-
-	// @Override
-	// public void addObserver(Observer observer) {
-	// observers.add(observer);
-	// }
-	//
-	// @Override
-	// public void notifyObservers() {
-	// for (Observer o : observers) {
-	// o.update(this, null);
-	// }
-	// clearChanged();
-	// }
-	//
-	// @Override
-	// public void notifyObservers(Object data) {
-	// for (Observer o : observers) {
-	// Log.d(mTag, "notifying: " + o.getClass().getSimpleName());
-	// o.update(this, data);
-	// Log.d(mTag, "notified: " + o.getClass().getSimpleName());
-	// }
-	// clearChanged();
-	// }
-	//
-	// @Override
-	// public int countObservers() {
-	// return observers.size();
-	// }
 
 }

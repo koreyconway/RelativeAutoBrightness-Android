@@ -4,11 +4,14 @@ import java.util.Observable;
 import java.util.Observer;
 
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.preference.Preference;
 import android.preference.PreferenceFragment;
+import android.preference.PreferenceManager;
 import android.preference.SwitchPreference;
 import android.util.Log;
 import android.widget.Toast;
@@ -27,6 +30,7 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		addPreferencesFromResource(R.xml.preferences);
+
 		mServiceEnabledPref = (SwitchPreference) findPreference(Data.SERVICE_ENABLED);
 		mLuxPref = (Preference) findPreference(Data.LUX);
 		mBrightnessPref = (Preference) findPreference(Data.BRIGHTNESS);
@@ -39,7 +43,7 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 		super.onResume();
 
 		// Check if service is active and update UI accordingly
-		boolean isServiceRunning = mData.getServiceEnabled();
+		boolean isServiceRunning = isServiceRunning();
 		if (isServiceRunning != mServiceEnabledPref.isChecked()) {
 			mServiceEnabledPref.setChecked(isServiceRunning);
 		}
@@ -58,6 +62,7 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 		Log.d(mTag, "on attach");
 		super.onAttach(activity);
 		mContext = activity.getApplicationContext();
+		//PreferenceManager.setDefaultValues(mContext, R.xml.preferences, false);
 		mData = Data.getInstance(mContext);
 		mData.addObserver(this);
 	}
@@ -88,6 +93,19 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 		mToast = Toast.makeText(mContext.getApplicationContext(), msg,
 				Toast.LENGTH_SHORT);
 		mToast.show();
+	}
+
+	private boolean isServiceRunning() {
+		ActivityManager manager = (ActivityManager) mContext
+				.getSystemService(Context.ACTIVITY_SERVICE);
+		for (RunningServiceInfo service : manager
+				.getRunningServices(Integer.MAX_VALUE)) {
+			if (MainService.class.getName().equals(
+					service.service.getClassName())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Override

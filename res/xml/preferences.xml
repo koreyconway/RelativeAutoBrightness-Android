@@ -4,7 +4,6 @@
     <SwitchPreference
         android:defaultValue="false"
         android:key="serviceEnabled"
-        android:summary="current brightness: 50"
         android:title="Enable" />
 
     <SeekBarPreference
@@ -19,9 +18,12 @@
         android:persistent="false"
         android:title="Advanced" >
         <EditTextPreference
+            android:defaultValue="5000"
+            android:key="senseIntervalMs"
+            android:title="Sense Interval" />
+        <EditTextPreference
             android:defaultValue="500"
             android:key="maxLux"
-            android:summary="current brightness: 50"
             android:title="Max Lux" />
     </PreferenceScreen>
 

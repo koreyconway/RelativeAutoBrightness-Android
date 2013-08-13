@@ -30,27 +30,17 @@ public class MainService extends Service implements Observer,
 	private Sensor mLightSensor;
 
 	private int mRelativeLevel;
-	private long mLastSenseMs = 0;
-	private long mLastBrightnessChangeMs;
-	private long mSenseIntervalMs = 1000;
-	private int mLux = 0;
+	private long mSenseIntervalMs = 0;
+	private float mLux = 0;
 	private boolean mIsSensingEnabled = true;
 	private int mBrightness;
 	private boolean mIsSensing = false;
+	private boolean mIsSensingQueued = false;
 
-	final private static int LUX_DIFF_THRESHOLD = 0;
-	final private static int LAST_BRIGHTNESS_CHANGE_MS_THRESHOLD = 300;
-
-	final private static int MIN_RELATIVE_LEVEL = 0;
-	final private static int MAX_RELATIVE_LEVEL = 100;
-	final private static int MIN_BRIGHTNESS = 0;
-	final private static int MAX_BRIGHTNESS = 255;
+	private AutoBrightnessStrategy mStrategy = new DefaultStrategy();
 
 	final private static String NOTIFICATION_ACTION_DECREASE = "decrease";
 	final private static String NOTIFICATION_ACTION_INCREASE = "increase";
-
-	final private static int INCREASE_LEVEL = 10; // TODO put this in advanced
-													// preferences
 
 	final private Handler HANDLER = new Handler(); // for caching only
 
@@ -70,6 +60,7 @@ public class MainService extends Service implements Observer,
 		// Load settings
 		mData = Data.getInstance(getApplicationContext());
 		mRelativeLevel = mData.getRelativeLevel();
+		mSenseIntervalMs = mData.getSenseInterval();
 
 		// Setup screen on/off detector
 		mScreenReceiver = new ScreenReceiver();
@@ -115,16 +106,16 @@ public class MainService extends Service implements Observer,
 	}
 
 	private void increaseBrightness() {
-		mData.setRelativeLevel(mRelativeLevel + INCREASE_LEVEL, true);
+		mData.setRelativeLevel(mRelativeLevel + Data.INCREASE_LEVEL, true);
 	}
 
 	private void decreaseBrightness() {
-		mData.setRelativeLevel(mRelativeLevel - INCREASE_LEVEL, true);
+		mData.setRelativeLevel(mRelativeLevel - Data.INCREASE_LEVEL, true);
 	}
 
 	private void startSensingLight() {
 		if (mIsSensingEnabled && !mIsSensing) {
-			Log.d(mTag, "starting light sensor");
+			Log.d("sense", "starting light sensor");
 			mIsSensing = true;
 			mSensorManager.registerListener(this, mLightSensor,
 					SensorManager.SENSOR_DELAY_NORMAL);
@@ -132,19 +123,24 @@ public class MainService extends Service implements Observer,
 	}
 
 	private void pauseSensingLight(long delay) {
-		Log.d(mTag, "pausing light sensor");
+		Log.d("sense", "pausing light sensor");
 		mIsSensing = false;
 		mSensorManager.unregisterListener(this, mLightSensor);
+		mIsSensingQueued = true;
 		HANDLER.postDelayed(new Runnable() {
 			@Override
 			public void run() {
 				startSensingLight();
+				mIsSensingQueued = false;
 			}
 		}, delay);
 	}
 
 	private void enableSensingLight() {
 		mIsSensingEnabled = true;
+		if (!mIsSensingQueued) {
+			startSensingLight();
+		}
 	}
 
 	private void disableSensingLight() {
@@ -156,22 +152,21 @@ public class MainService extends Service implements Observer,
 	private void updateBrightness() {
 		int newBrightness;
 
-		if (mRelativeLevel == MIN_RELATIVE_LEVEL) {
-			newBrightness = MIN_BRIGHTNESS;
+		if (mRelativeLevel == Data.MIN_RELATIVE_LEVEL) {
+			newBrightness = Data.MIN_BRIGHTNESS;
 			disableSensingLight();
 			buzz();
-		} else if (mRelativeLevel == MAX_RELATIVE_LEVEL) {
-			newBrightness = MAX_BRIGHTNESS;
+		} else if (mRelativeLevel == Data.MAX_RELATIVE_LEVEL) {
+			newBrightness = Data.MAX_BRIGHTNESS;
 			disableSensingLight();
 			buzz();
 		} else {
-			newBrightness = (int) ((mLux / 30) + (mRelativeLevel / 2));
+			newBrightness = mStrategy.computeBrightness(mData);
 			enableSensingLight();
-			startSensingLight();
 		}
 
 		if (newBrightness != mBrightness) {
-			mLastBrightnessChangeMs = System.currentTimeMillis();
+			// mLastBrightnessChangeMs = System.currentTimeMillis();
 			mData.setBrightness(newBrightness);
 		}
 	}
@@ -207,27 +202,26 @@ public class MainService extends Service implements Observer,
 	public void onSensorChanged(SensorEvent event) {
 		if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
 			// Ignore if updating too often
-			long currentTime = System.currentTimeMillis();
-			if ((currentTime - mLastSenseMs) < mSenseIntervalMs) {
-				return;
-			}
+			// long currentTime = System.currentTimeMillis();
+			// if ((currentTime - mLastSenseMs) < mSenseIntervalMs) {
+			// return;
+			// }
 
 			// Save last update time
-			mLastSenseMs = currentTime;
+			// mLastSenseMs = currentTime;
 
 			// Turn off light sensor and schedule next reading
 			pauseSensingLight(mSenseIntervalMs);
 
 			// Get lux level
-			int newLux = (int) event.values[0];
+			float newLux = event.values[0];
 
 			// Only update if lux has changed significantly
-			if (Math.abs(newLux - mLux) > LUX_DIFF_THRESHOLD) {
-				Log.d(mTag, "new lux: " + newLux);
+			if (Math.abs(newLux - mLux) > Data.LUX_DIFF_THRESHOLD) {
 				mData.setLux(newLux);
-			} else {
-				Log.d(mTag, "not updating");
 			}
+
+			Log.d("sense", "lux: " + newLux);
 		}
 	}
 
@@ -254,6 +248,8 @@ public class MainService extends Service implements Observer,
 			}
 		} else if (Data.BRIGHTNESS.equals(key)) {
 			mBrightness = mData.getBrightness();
+		} else if (Data.SENSE_INTERVAL.equals(key)) {
+			mSenseIntervalMs = mData.getSenseInterval();
 		}
 	}
 
@@ -266,7 +262,6 @@ public class MainService extends Service implements Observer,
 			} else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
 				Log.d(mTag, "screen on");
 				enableSensingLight();
-				startSensingLight();
 			}
 		}
 	}
