@@ -62,7 +62,8 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 		Log.d(mTag, "on attach");
 		super.onAttach(activity);
 		mContext = activity.getApplicationContext();
-		//PreferenceManager.setDefaultValues(mContext, R.xml.preferences, false);
+		// PreferenceManager.setDefaultValues(mContext, R.xml.preferences,
+		// false);
 		mData = Data.getInstance(mContext);
 		mData.addObserver(this);
 	}
@@ -121,9 +122,9 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 		} else if (Data.LUX.equals(key)) {
 			mLuxPref.setTitle("Lux : " + mData.getLux());
 		} else if (Data.BRIGHTNESS.equals(key)) {
-			int brightnessPercentage = (mData.getBrightness() * 100 / Data.MAX_BRIGHTNESS);
-			mBrightnessPref.setTitle("Brightness : " + brightnessPercentage
-					+ "%");
+			// int brightnessPercentage = (mData.getBrightness() * 100 /
+			// Data.MAX_BRIGHTNESS);
+			mBrightnessPref.setTitle("Brightness : " + mData.getBrightness());
 		}
 	}
 

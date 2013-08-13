@@ -32,10 +32,8 @@ public class MainService extends Service implements Observer,
 	private int mRelativeLevel;
 	private long mSenseIntervalMs = 0;
 	private float mLux = 0;
-	private boolean mIsSensingEnabled = true;
 	private int mBrightness;
-	private boolean mIsSensing = false;
-	private boolean mIsSensingQueued = false;
+	private Runnable mScheduledSenseRunnable;
 
 	private AutoBrightnessStrategy mStrategy = new DefaultStrategy();
 
@@ -97,7 +95,7 @@ public class MainService extends Service implements Observer,
 	@Override
 	public void onDestroy() {
 		Log.d(mTag, "stopping service");
-		disableSensingLight();
+		stopSensingLight();
 		unregisterReceiver(mScreenReceiver);
 		mData.deleteObserver(this);
 		mData.setServiceEnabled(false);
@@ -113,40 +111,39 @@ public class MainService extends Service implements Observer,
 		mData.setRelativeLevel(mRelativeLevel - Data.INCREASE_LEVEL, true);
 	}
 
+	private void enableSensingLight() {
+		if (mScheduledSenseRunnable == null) {
+			startSensingLight();
+		}
+	}
+
 	private void startSensingLight() {
-		if (mIsSensingEnabled && !mIsSensing) {
-			Log.d("sense", "starting light sensor");
-			mIsSensing = true;
+		Log.d("sense", "starting light sensor");
+		if (mScheduledSenseRunnable == null) {
 			mSensorManager.registerListener(this, mLightSensor,
 					SensorManager.SENSOR_DELAY_NORMAL);
 		}
 	}
 
-	private void pauseSensingLight(long delay) {
-		Log.d("sense", "pausing light sensor");
-		mIsSensing = false;
+	private void stopSensingLight() {
 		mSensorManager.unregisterListener(this, mLightSensor);
-		mIsSensingQueued = true;
-		HANDLER.postDelayed(new Runnable() {
-			@Override
-			public void run() {
-				startSensingLight();
-				mIsSensingQueued = false;
-			}
-		}, delay);
-	}
-
-	private void enableSensingLight() {
-		mIsSensingEnabled = true;
-		if (!mIsSensingQueued) {
-			startSensingLight();
+		if (mScheduledSenseRunnable != null) {
+			HANDLER.removeCallbacks(mScheduledSenseRunnable);
+			mScheduledSenseRunnable = null;
 		}
 	}
 
-	private void disableSensingLight() {
-		mIsSensingEnabled = false;
-		mIsSensing = false;
-		mSensorManager.unregisterListener(this, mLightSensor);
+	private void pauseSensingLight(long delay) {
+		Log.d("sense", "pausing light sensor");
+		stopSensingLight();
+		mScheduledSenseRunnable = new Runnable() {
+			@Override
+			public void run() {
+				mScheduledSenseRunnable = null;
+				startSensingLight();
+			}
+		};
+		HANDLER.postDelayed(mScheduledSenseRunnable, delay);
 	}
 
 	private void updateBrightness() {
@@ -154,11 +151,11 @@ public class MainService extends Service implements Observer,
 
 		if (mRelativeLevel == Data.MIN_RELATIVE_LEVEL) {
 			newBrightness = Data.MIN_BRIGHTNESS;
-			disableSensingLight();
+			stopSensingLight();
 			buzz();
 		} else if (mRelativeLevel == Data.MAX_RELATIVE_LEVEL) {
 			newBrightness = Data.MAX_BRIGHTNESS;
-			disableSensingLight();
+			stopSensingLight();
 			buzz();
 		} else {
 			newBrightness = mStrategy.computeBrightness(mData);
@@ -258,10 +255,10 @@ public class MainService extends Service implements Observer,
 		public void onReceive(Context context, Intent intent) {
 			if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
 				Log.d(mTag, "screen off");
-				disableSensingLight();
+				stopSensingLight();
 			} else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
 				Log.d(mTag, "screen on");
-				enableSensingLight();
+				startSensingLight();
 			}
 		}
 	}

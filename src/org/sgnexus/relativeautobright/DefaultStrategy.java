@@ -1,13 +1,25 @@
 package org.sgnexus.relativeautobright;
 
-public class DefaultStrategy extends AutoBrightnessStrategy {
+class DefaultStrategy extends AutoBrightnessStrategy {
 
-	public DefaultStrategy() {
+	static private int THRESHOLD = 10;
+
+	DefaultStrategy() {
 	}
 
 	@Override
 	int computeBrightness(Data data) {
-		return (int) ((data.getLux() / 30) + ((data.getRelativeLevel() - 50) * 3 / 7));
+		int prevBrightness = data.getBrightness();
+		int newBrightness = (int) ((data.getLux() / 30) + ((data
+				.getRelativeLevel() - 50) * 3 / 7));
+
+		// Try to keep the lowest brightness
+		if ((newBrightness < prevBrightness)
+				|| ((newBrightness - prevBrightness) > THRESHOLD)) {
+			return newBrightness;
+		} else {
+			return prevBrightness;
+		}
 	}
 
 }

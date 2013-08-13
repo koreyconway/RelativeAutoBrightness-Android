@@ -32,7 +32,6 @@
         android:persistent="false"
         android:selectable="false"
         android:title="Current Brightness: 50" />
-
     <Preference
         android:key="lux"
         android:persistent="false"

@@ -14,7 +14,7 @@ import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.util.Log;
 
-public class Data extends Observable implements
+class Data extends Observable implements
 		OnSharedPreferenceChangeListener {
 	final private String mTag = this.getClass().getSimpleName();
 	static private Data sInstance;
@@ -76,7 +76,7 @@ public class Data extends Observable implements
 				true, mSettingsObserver);
 	}
 
-	static public Data getInstance(Context context) {
+	static Data getInstance(Context context) {
 		if (sInstance == null) {
 			sInstance = new Data(context);
 		}
