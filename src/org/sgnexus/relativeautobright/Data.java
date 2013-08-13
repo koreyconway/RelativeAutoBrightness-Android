@@ -14,8 +14,7 @@ import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.util.Log;
 
-class Data extends Observable implements
-		OnSharedPreferenceChangeListener {
+class Data extends Observable implements OnSharedPreferenceChangeListener {
 	final private String mTag = this.getClass().getSimpleName();
 	static private Data sInstance;
 	private SharedPreferences mPrefs;
@@ -39,8 +38,8 @@ class Data extends Observable implements
 	public static final int MAX_RELATIVE_LEVEL = 100;
 
 	// todo: put these in advanced preferences
-	final public static int LUX_DIFF_THRESHOLD = 0;
-	final public static int INCREASE_LEVEL = 10;
+	final public static int LUX_DIFF_THRESHOLD = 5;
+	final public static int INCREASE_LEVEL = 5;
 	final public static int DEFAULT_SENSE_INTERVAL = 2000;
 
 	private Data(Context context) {
