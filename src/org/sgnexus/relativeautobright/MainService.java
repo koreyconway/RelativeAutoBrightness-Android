@@ -57,8 +57,16 @@ public class MainService extends Service implements Observer,
 
 		// Load settings
 		mData = Data.getInstance(getApplicationContext());
+		mBrightness = mData.getBrightness();
 		mRelativeLevel = mData.getRelativeLevel();
 		mSenseIntervalMs = mData.getSenseInterval();
+		mLux = mData.getLux();
+
+		// Set to manual brightness mode
+		mData.setBrightnessMode(Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+
+		// Observe setting changes
+		mData.addObserver(this);
 
 		// Setup screen on/off detector
 		mScreenReceiver = new ScreenReceiver();
@@ -67,19 +75,13 @@ public class MainService extends Service implements Observer,
 		filter.addAction(Intent.ACTION_SCREEN_OFF);
 		registerReceiver(mScreenReceiver, filter);
 
-		// Set to manual brightness mode
-		mData.setBrightnessMode(Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
-
-		// Get current brightness
-		mBrightness = mData.getBrightness();
-
-		// Observe setting changes
-		mData.addObserver(this);
-
 		// Setup light sensor
 		mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 		mLightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
 		startSensingLight();
+
+		// Update the brightness
+		updateBrightness();
 
 		// Start the foreground notification
 		startNotification();
@@ -163,7 +165,7 @@ public class MainService extends Service implements Observer,
 		}
 
 		if (newBrightness != mBrightness) {
-			// mLastBrightnessChangeMs = System.currentTimeMillis();
+			mBrightness = newBrightness;
 			mData.setBrightness(newBrightness);
 		}
 	}
@@ -173,8 +175,8 @@ public class MainService extends Service implements Observer,
 	}
 
 	private void startNotification() {
-		Intent intent = new Intent(this, MainActivity.class);
-		PendingIntent pIntent = PendingIntent.getActivity(this, 0, intent, 0);
+		Intent intent;
+		PendingIntent pIntent;
 		RemoteViews remoteView = new RemoteViews(getPackageName(),
 				R.layout.notification);
 
@@ -188,6 +190,10 @@ public class MainService extends Service implements Observer,
 		pIntent = PendingIntent.getService(this, 0, intent, 0);
 		remoteView.setOnClickPendingIntent(R.id.decreaseButton, pIntent);
 
+		intent = new Intent(this, MainActivity.class);
+		pIntent = PendingIntent.getActivity(this, 0, intent, 0);
+		remoteView.setOnClickPendingIntent(R.id.title, pIntent);
+
 		NotificationCompat.Builder notification = new NotificationCompat.Builder(
 				this).setContent(remoteView).setSmallIcon(
 				R.drawable.ic_launcher);
@@ -198,15 +204,6 @@ public class MainService extends Service implements Observer,
 	@Override
 	public void onSensorChanged(SensorEvent event) {
 		if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
-			// Ignore if updating too often
-			// long currentTime = System.currentTimeMillis();
-			// if ((currentTime - mLastSenseMs) < mSenseIntervalMs) {
-			// return;
-			// }
-
-			// Save last update time
-			// mLastSenseMs = currentTime;
-
 			// Turn off light sensor and schedule next reading
 			pauseSensingLight(mSenseIntervalMs);
 
@@ -244,7 +241,10 @@ public class MainService extends Service implements Observer,
 				stopSelf();
 			}
 		} else if (Data.BRIGHTNESS.equals(key)) {
-			mBrightness = mData.getBrightness();
+			if (mBrightness != mData.getBrightness()) {
+				// Must have had brightness changed outside of app
+				stopSelf();
+			}
 		} else if (Data.SENSE_INTERVAL.equals(key)) {
 			mSenseIntervalMs = mData.getSenseInterval();
 		}

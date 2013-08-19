@@ -25,6 +25,7 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 	private Context mContext;
 	private Toast mToast;
 	private Data mData;
+	private boolean isToastEnabled = true;
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -39,21 +40,22 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 	@Override
 	public void onResume() {
 		Log.d(mTag, "on resume");
-
 		super.onResume();
 
-		// Check if service is active and update UI accordingly
-		boolean isServiceRunning = isServiceRunning();
-		if (isServiceRunning != mServiceEnabledPref.isChecked()) {
-			mServiceEnabledPref.setChecked(isServiceRunning);
+		if (mData != null) {
+			isToastEnabled = false;
+			mData.addObserver(this);
+			update(mData, null);
+			isToastEnabled = true;
 		}
-
-		// TODO update the seekbar if relative level changed
 	}
 
 	@Override
 	public void onPause() {
 		Log.d(mTag, "on pause");
+		if (mData != null) {
+			mData.deleteObserver(this);
+		}
 		super.onPause();
 	}
 
@@ -62,18 +64,8 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 		Log.d(mTag, "on attach");
 		super.onAttach(activity);
 		mContext = activity.getApplicationContext();
-		// PreferenceManager.setDefaultValues(mContext, R.xml.preferences,
-		// false);
+		PreferenceManager.setDefaultValues(mContext, R.xml.preferences, false);
 		mData = Data.getInstance(mContext);
-		mData.addObserver(this);
-	}
-
-	@Override
-	public void onDetach() {
-		Log.d(mTag, "on detach");
-		mData.deleteObserver(this);
-		mContext = null;
-		super.onDetach();
 	}
 
 	private void setServiceEnabled(boolean enabled) {
@@ -87,13 +79,15 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 	}
 
 	private void showToast(CharSequence msg) {
-		if (mToast != null) {
-			mToast.cancel();
-		}
+		if (isToastEnabled) {
+			if (mToast != null) {
+				mToast.cancel();
+			}
 
-		mToast = Toast.makeText(mContext.getApplicationContext(), msg,
-				Toast.LENGTH_SHORT);
-		mToast.show();
+			mToast = Toast.makeText(mContext.getApplicationContext(), msg,
+					Toast.LENGTH_SHORT);
+			mToast.show();
+		}
 	}
 
 	private boolean isServiceRunning() {
@@ -111,20 +105,31 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 
 	@Override
 	public void update(Observable observable, Object data) {
-		String key = (String) data;
-
-		Log.d(mTag, "update fragment: " + key);
-
-		if (Data.SERVICE_ENABLED.equals(key)) {
-			setServiceEnabled(mData.getServiceEnabled());
-		} else if (Data.RELATIVE_LEVEL.equals(key)) {
-			// TODO update the seekbar
-		} else if (Data.LUX.equals(key)) {
+		if (data == null) {
+			Log.d(mTag, "update UI fragment: all fields");
 			mLuxPref.setTitle("Lux : " + mData.getLux());
-		} else if (Data.BRIGHTNESS.equals(key)) {
-			// int brightnessPercentage = (mData.getBrightness() * 100 /
-			// Data.MAX_BRIGHTNESS);
 			mBrightnessPref.setTitle("Brightness : " + mData.getBrightness());
+
+			boolean isServiceRunning = isServiceRunning();
+			if (isServiceRunning != mServiceEnabledPref.isChecked()) {
+				mServiceEnabledPref.setChecked(isServiceRunning);
+			}
+		} else {
+			String key = (String) data;
+			Log.d(mTag, "update fragment: " + key);
+
+			if (Data.SERVICE_ENABLED.equals(key)) {
+				setServiceEnabled(mData.getServiceEnabled());
+			} else if (Data.RELATIVE_LEVEL.equals(key)) {
+				// TODO update the seekbar
+			} else if (Data.LUX.equals(key)) {
+				mLuxPref.setTitle("Lux : " + mData.getLux());
+			} else if (Data.BRIGHTNESS.equals(key)) {
+				// int brightnessPercentage = (mData.getBrightness() * 100 /
+				// Data.MAX_BRIGHTNESS);
+				mBrightnessPref.setTitle("Brightness : "
+						+ mData.getBrightness());
+			}
 		}
 	}
 

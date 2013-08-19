@@ -1,6 +1,5 @@
 package org.sgnexus.relativeautobright;
 
-import java.util.HashMap;
 import java.util.Observable;
 import java.util.Observer;
 
@@ -20,59 +19,38 @@ class Data extends Observable implements OnSharedPreferenceChangeListener {
 	private SharedPreferences mPrefs;
 	private Context mContext;
 	private SettingsContentObserver mSettingsObserver;
+	private boolean isListening = false;
 
-	// private LinkedList<Observer> observers = new LinkedList<Observer>();
+	final static String SERVICE_ENABLED = "serviceEnabled";
+	final static String RELATIVE_LEVEL = "relativeLevel";
+	final static String LUX = "lux";
+	final static String BRIGHTNESS = "brightness";
+	final static String BRIGHTNESS_MODE = "brightnessMode";
+	final static String SENSE_INTERVAL = "senseIntervalMs";
 
-	private HashMap<String, Object> values = new HashMap<String, Object>();
-
-	final public static String SERVICE_ENABLED = "serviceEnabled";
-	final public static String RELATIVE_LEVEL = "relativeLevel";
-	final public static String LUX = "lux";
-	final public static String BRIGHTNESS = "brightness";
-	final public static String BRIGHTNESS_MODE = "brightnessMode";
-	final public static String SENSE_INTERVAL = "senseIntervalMs";
-
-	public static final int MIN_BRIGHTNESS = 0;
-	public static final int MAX_BRIGHTNESS = 255;
-	public static final int MIN_RELATIVE_LEVEL = 0;
-	public static final int MAX_RELATIVE_LEVEL = 100;
+	static final int MIN_BRIGHTNESS = 0;
+	static final int MAX_BRIGHTNESS = 255;
+	static final int MIN_RELATIVE_LEVEL = 0;
+	static final int MAX_RELATIVE_LEVEL = 100;
 
 	// todo: put these in advanced preferences
-	final public static int LUX_DIFF_THRESHOLD = 5;
-	final public static int INCREASE_LEVEL = 5;
-	final public static int DEFAULT_SENSE_INTERVAL = 2000;
+	final static int LUX_DIFF_THRESHOLD = 1;
+	final static int INCREASE_LEVEL = 5;
+	final static int DEFAULT_SENSE_INTERVAL = 2000;
+
+	private boolean mServiceEnabled;
+	private int mRelativeLevel;
+	private float mLux = 1.0f;
+	private int mBrightness;
+	private int mBrightnessMode;
+	private int mSenseInterval;
 
 	private Data(Context context) {
 		mContext = context;
 		mPrefs = PreferenceManager.getDefaultSharedPreferences(context);
 
 		// Set initial data values
-		putBoolean(SERVICE_ENABLED, mPrefs.getBoolean(SERVICE_ENABLED, false));
-		putInt(RELATIVE_LEVEL, mPrefs.getInt(RELATIVE_LEVEL, 50));
-		putInt(LUX, 1);
-		putInt(BRIGHTNESS, Settings.System.getInt(
-				mContext.getContentResolver(),
-				Settings.System.SCREEN_BRIGHTNESS, 0));
-		putInt(BRIGHTNESS_MODE, Settings.System.getInt(
-				mContext.getContentResolver(),
-				Settings.System.SCREEN_BRIGHTNESS_MODE, 0));
-		putInt(SENSE_INTERVAL,
-				Integer.parseInt(mPrefs.getString(SENSE_INTERVAL, "5000")));
-
-		// Setup listeners
-		mPrefs.registerOnSharedPreferenceChangeListener(this);
-		mSettingsObserver = new SettingsContentObserver();
-		mContext.getContentResolver()
-				.registerContentObserver(
-						Uri.withAppendedPath(
-								android.provider.Settings.System.CONTENT_URI,
-								android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE),
-						true, mSettingsObserver);
-		mContext.getContentResolver().registerContentObserver(
-				Uri.withAppendedPath(
-						android.provider.Settings.System.CONTENT_URI,
-						android.provider.Settings.System.SCREEN_BRIGHTNESS),
-				true, mSettingsObserver);
+		loadValuesFromPrefs();
 	}
 
 	static Data getInstance(Context context) {
@@ -83,124 +61,118 @@ class Data extends Observable implements OnSharedPreferenceChangeListener {
 		return sInstance;
 	}
 
-	public void setRelativeLevel(int level) {
+	void loadValuesFromPrefs() {
+		mServiceEnabled = mPrefs.getBoolean(SERVICE_ENABLED, false);
+		mRelativeLevel = mPrefs.getInt(RELATIVE_LEVEL, 50);
+		mBrightness = Settings.System.getInt(mContext.getContentResolver(),
+				Settings.System.SCREEN_BRIGHTNESS, 0);
+		mBrightnessMode = Settings.System.getInt(mContext.getContentResolver(),
+				Settings.System.SCREEN_BRIGHTNESS_MODE, 0);
+		mSenseInterval = Integer.parseInt(mPrefs.getString(SENSE_INTERVAL,
+				"5000"));
+	}
+
+	void setRelativeLevel(int level) {
 		setRelativeLevel(level, false);
 	}
 
-	public void setRelativeLevel(int level, boolean saveInSharedPrefs) {
+	void setRelativeLevel(int level, boolean saveInSharedPrefs) {
 		level = Math.min(Math.max(level, MIN_RELATIVE_LEVEL),
 				MAX_RELATIVE_LEVEL);
 
-		if (saveInSharedPrefs) {
-			mPrefs.edit().putInt(RELATIVE_LEVEL, level).commit();
-			putInt(BRIGHTNESS_MODE, level);
+		if (level != mRelativeLevel) {
+			mRelativeLevel = level;
+			if (saveInSharedPrefs) {
+				mPrefs.edit().putInt(RELATIVE_LEVEL, level).commit();
+			}
+			notifyObservers(RELATIVE_LEVEL);
 		}
-
 	}
 
-	public int getRelativeLevel() {
-		return getInt(RELATIVE_LEVEL);
+	int getRelativeLevel() {
+		return mRelativeLevel;
 	}
 
-	public void setBrightnessMode(int mode) {
+	void setBrightnessMode(int mode) {
 		int prevMode = getBrightnessMode();
 
 		if (prevMode != mode) {
 			Settings.System.putInt(mContext.getContentResolver(),
 					Settings.System.SCREEN_BRIGHTNESS_MODE, mode);
-			putInt(BRIGHTNESS_MODE, mode);
+			mBrightnessMode = mode;
+			notifyObservers(BRIGHTNESS_MODE);
 		}
 
 	}
 
-	public int getBrightnessMode() {
-		return getInt(BRIGHTNESS_MODE);
+	int getBrightnessMode() {
+		return mBrightnessMode;
 	}
 
-	public void setServiceEnabled(boolean enabled) {
-		putBoolean(SERVICE_ENABLED, enabled);
+	void setServiceEnabled(boolean enabled) {
+		if (enabled != mServiceEnabled) {
+			mServiceEnabled = enabled;
+			notifyObservers(SERVICE_ENABLED);
+		}
 	}
 
-	public boolean getServiceEnabled() {
-		return getBoolean(SERVICE_ENABLED);
+	boolean getServiceEnabled() {
+		return mServiceEnabled;
 	}
 
-	public void setBrightness(int brightness) {
-		int prevBrightness = getBrightness();
+	void setBrightness(int brightness) {
 		brightness = Math.min(Math.max(brightness, MIN_BRIGHTNESS),
 				MAX_BRIGHTNESS);
 
-		if (prevBrightness != brightness) {
+		if (mBrightness != brightness) {
+			mBrightness = brightness;
 			Settings.System.putInt(mContext.getContentResolver(),
 					Settings.System.SCREEN_BRIGHTNESS, brightness);
-			putInt(BRIGHTNESS, brightness);
+			notifyObservers(BRIGHTNESS);
 		}
 
 	}
 
-	public int getBrightness() {
-		return getInt(BRIGHTNESS);
+	int getBrightness() {
+		return mBrightness;
 	}
 
-	public void setLux(float lux) {
-		putFloat(LUX, lux);
-	}
-
-	public float getLux() {
-		return getFloat(LUX);
-	}
-
-	// public void setSenseInterval(int intervalMs) {
-	// putInt(SENSE_INTERVAL, intervalMs);
-	// Log.d(mTag, "sense interval set to: " + intervalMs + " ms");
-	// }
-
-	public int getSenseInterval() {
-		return getInt(SENSE_INTERVAL);
-	}
-
-	private void put(String key, Object value) {
-		Log.d(mTag, "Putting: " + key);
-
-		if (!value.equals(values.get(key))) {
-			values.put(key, value);
-			setChanged();
-			notifyObservers(key);
+	void setLux(float lux) {
+		if (Float.compare(mLux, lux) != 0) {
+			mLux = lux;
+			notifyObservers(LUX);
 		}
 	}
 
-	private void putBoolean(String key, Boolean value) {
-		put(key, value);
+	float getLux() {
+		return mLux;
 	}
 
-	private boolean getBoolean(String key) {
-		return ((Boolean) values.get(key)).booleanValue();
+	void setSenseInterval(int intervalMs) {
+		if (mSenseInterval != intervalMs) {
+			mSenseInterval = intervalMs;
+			notifyObservers(SENSE_INTERVAL);
+		}
 	}
 
-	private void putInt(String key, Integer value) {
-		put(key, value);
+	int getSenseInterval() {
+		return mSenseInterval;
 	}
 
-	private int getInt(String key) {
-		return ((Integer) values.get(key)).intValue();
-	}
-
-	private void putFloat(String key, Float value) {
-		put(key, value);
-	}
-
-	private float getFloat(String key) {
-		return ((Float) values.get(key)).floatValue();
+	private void notifyObservers(String key) {
+		setChanged();
+		super.notifyObservers(key);
 	}
 
 	@Override
 	public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
+		Log.d(mTag, "pref changed: " + key);
 		if (key.equals(RELATIVE_LEVEL)) {
-			putInt(key, prefs.getInt(key, 0));
+			setRelativeLevel(prefs.getInt(key, 0));
 		} else if (key.equals(SERVICE_ENABLED)) {
-			putBoolean(key, prefs.getBoolean(key, false));
+			setServiceEnabled(prefs.getBoolean(key, false));
 		} else if (key.equals(SENSE_INTERVAL)) {
-			putInt(key, Integer.parseInt(prefs.getString(key, "5000")));
+			setSenseInterval(Integer.parseInt(prefs.getString(key, "5000")));
 		}
 	}
 
@@ -214,17 +186,59 @@ class Data extends Observable implements OnSharedPreferenceChangeListener {
 		public void onChange(boolean selfChange, Uri uri) {
 			if ("content://settings/system/screen_brightness".equals(uri
 					.toString())) {
-				putInt(BRIGHTNESS, Settings.System.getInt(
+				int brightness = Settings.System.getInt(
 						mContext.getContentResolver(),
-						Settings.System.SCREEN_BRIGHTNESS, 0));
+						Settings.System.SCREEN_BRIGHTNESS, 0);
+
+				if (brightness != mBrightness) {
+					mBrightness = brightness;
+					notifyObservers(BRIGHTNESS);
+				}
 			} else if ("content://settings/system/screen_brightness_mode"
 					.equals(uri.toString())) {
-				putInt(BRIGHTNESS_MODE, Settings.System.getInt(
+				int brightnessMode = Settings.System.getInt(
 						mContext.getContentResolver(),
-						Settings.System.SCREEN_BRIGHTNESS_MODE, 0));
+						Settings.System.SCREEN_BRIGHTNESS_MODE, 0);
+
+				if (brightnessMode != mBrightnessMode) {
+					mBrightnessMode = brightnessMode;
+					notifyObservers(BRIGHTNESS_MODE);
+				}
 			}
 		}
 
+	}
+
+	@Override
+	public void addObserver(Observer observer) {
+		Log.d(mTag, "adding observer: #" + countObservers());
+		if (!isListening) {
+			startListening();
+		}
+		super.addObserver(observer);
+	}
+
+	private void startListening() {
+		// Setup listeners
+		if (!isListening) {
+			Log.d(mTag, "setup data listeners");
+			isListening = true;
+			loadValuesFromPrefs();
+			mPrefs.registerOnSharedPreferenceChangeListener(this);
+			mSettingsObserver = new SettingsContentObserver();
+			mContext.getContentResolver()
+					.registerContentObserver(
+							Uri.withAppendedPath(
+									android.provider.Settings.System.CONTENT_URI,
+									android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE),
+							true, mSettingsObserver);
+			mContext.getContentResolver()
+					.registerContentObserver(
+							Uri.withAppendedPath(
+									android.provider.Settings.System.CONTENT_URI,
+									android.provider.Settings.System.SCREEN_BRIGHTNESS),
+							true, mSettingsObserver);
+		}
 	}
 
 	@Override
@@ -232,20 +246,25 @@ class Data extends Observable implements OnSharedPreferenceChangeListener {
 		super.deleteObserver(observer);
 
 		if (countObservers() == 0) {
-			onFinish();
+			stopListening();
 		}
 	}
 
 	@Override
 	public synchronized void deleteObservers() {
 		super.deleteObservers();
-		onFinish();
+		stopListening();
 	}
 
-	public void onFinish() {
-		mPrefs.unregisterOnSharedPreferenceChangeListener(this);
-		mContext.getContentResolver().unregisterContentObserver(
-				mSettingsObserver);
+	private void stopListening() {
+		// Remove listeners
+		if (isListening) {
+			Log.d(mTag, "removing data listeners");
+			isListening = false;
+			mPrefs.unregisterOnSharedPreferenceChangeListener(this);
+			mContext.getContentResolver().unregisterContentObserver(
+					mSettingsObserver);
+		}
 	}
 
 }
