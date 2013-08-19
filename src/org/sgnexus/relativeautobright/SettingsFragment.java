@@ -103,13 +103,26 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 		return false;
 	}
 
+	private void updateLux(float lux) {
+		if (Float.compare(lux, -1.0f) == 0) {
+			mLuxPref.setTitle("Lux : n/a");
+		} else {
+			mLuxPref.setTitle("Lux : " + lux);
+		}
+	}
+
+	private void updateBrightness(int brightness) {
+		// int brightnessPercentage = (mData.getBrightness() * 100 /
+		// Data.MAX_BRIGHTNESS);
+		mBrightnessPref.setTitle("Brightness : " + brightness);
+	}
+
 	@Override
 	public void update(Observable observable, Object data) {
 		if (data == null) {
 			Log.d(mTag, "update UI fragment: all fields");
-			mLuxPref.setTitle("Lux : " + mData.getLux());
-			mBrightnessPref.setTitle("Brightness : " + mData.getBrightness());
-
+			updateLux(mData.getLux());
+			updateBrightness(mData.getBrightness());
 			boolean isServiceRunning = isServiceRunning();
 			if (isServiceRunning != mServiceEnabledPref.isChecked()) {
 				mServiceEnabledPref.setChecked(isServiceRunning);
@@ -123,12 +136,9 @@ public class SettingsFragment extends PreferenceFragment implements Observer {
 			} else if (Data.RELATIVE_LEVEL.equals(key)) {
 				// TODO update the seekbar
 			} else if (Data.LUX.equals(key)) {
-				mLuxPref.setTitle("Lux : " + mData.getLux());
+				updateLux(mData.getLux());
 			} else if (Data.BRIGHTNESS.equals(key)) {
-				// int brightnessPercentage = (mData.getBrightness() * 100 /
-				// Data.MAX_BRIGHTNESS);
-				mBrightnessPref.setTitle("Brightness : "
-						+ mData.getBrightness());
+				updateBrightness(mData.getBrightness());
 			}
 		}
 	}

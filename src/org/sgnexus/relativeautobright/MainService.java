@@ -30,8 +30,8 @@ public class MainService extends Service implements Observer,
 	private Sensor mLightSensor;
 
 	private int mRelativeLevel;
-	private long mSenseIntervalMs = 0;
-	private float mLux = 0;
+	private long mSenseIntervalMs;
+	private float mLux;
 	private int mBrightness;
 	private Runnable mScheduledSenseRunnable;
 
@@ -81,7 +81,7 @@ public class MainService extends Service implements Observer,
 		startSensingLight();
 
 		// Update the brightness
-		updateBrightness();
+		// updateBrightness();
 
 		// Start the foreground notification
 		startNotification();
@@ -101,6 +101,12 @@ public class MainService extends Service implements Observer,
 		unregisterReceiver(mScreenReceiver);
 		mData.deleteObserver(this);
 		mData.setServiceEnabled(false);
+
+		// Set lux to -1 so that service will update brightness when started
+		// again even if same lux is present, and so UI knows lux is not being
+		// monitored
+		mData.setLux(-1.0f);
+
 		this.stopForeground(true);
 		super.onDestroy();
 	}
@@ -211,7 +217,7 @@ public class MainService extends Service implements Observer,
 			float newLux = event.values[0];
 
 			// Only update if lux has changed significantly
-			if (Math.abs(newLux - mLux) > Data.LUX_DIFF_THRESHOLD) {
+			if (Float.compare(newLux, mLux) != 0) {
 				mData.setLux(newLux);
 			}
 

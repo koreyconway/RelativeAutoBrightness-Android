@@ -40,7 +40,7 @@ class Data extends Observable implements OnSharedPreferenceChangeListener {
 
 	private boolean mServiceEnabled;
 	private int mRelativeLevel;
-	private float mLux = 1.0f;
+	private float mLux = -1.0f;
 	private int mBrightness;
 	private int mBrightnessMode;
 	private int mSenseInterval;
